@@ -9,7 +9,18 @@ class ResponseGenerator(BaseAgent):
         # 初始化 ChatOpenAI 模型與預設提示模板
         self.llm = ChatOpenAI(model_name="gpt-4o")  # 使用 gpt-4o 模型生成回應
         self.template = PromptTemplate.from_template(
-            "請根據以下資訊生成簡明易懂的回應：\n\n{data}"
+            """請根據以下資訊生成簡明易懂的回應。
+            
+要求：
+1. 提取最新的財報日期和重要數據
+2. 用簡潔的語言總結重要資訊
+3. 僅保留相關且重要的資訊
+4. 使用結構化的方式呈現
+
+資訊來源：
+{data}
+
+請生成回應："""
         )
 
     def invoke(self, input_data: dict) -> dict:  # 將 run 改名為 invoke
@@ -25,5 +36,5 @@ class ResponseGenerator(BaseAgent):
 
         return {
             "query": retrieved_data["query"],  # 返回原查詢內容
-            "response": response               # 返回 LLM 生成的回應結果
+            "response": response.content       # 只回傳實際內容，不包含元數據
         }

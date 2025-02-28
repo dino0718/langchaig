@@ -15,14 +15,26 @@ class DataRetriever(BaseAgent):
         query = input_data["query"]
         print(f"[DataRetriever] 檢索中: {query}")
 
-        # 使用 DuckDuckGo 進行網路搜尋，獲取網路上的相關資料
-        search_results = self.search_tool.run(query)
+        try:
+            search_results = self.search_tool.run(query)
+            wiki_results = self.wiki_tool.run(query)
+            
+            result_text = f"""
+搜尋結果:
+{search_results}
 
-        # 若查詢主題適用，使用 Wikipedia API 進行資料查詢
-        wiki_results = self.wiki_tool.run(query)
-
-        return {
-            "query": query,                   # 返回原查詢關鍵字
-            "search_results": search_results, # 返回網路搜尋結果
-            "wiki_results": wiki_results      # 返回 Wikipedia 查詢結果
-        }
+維基百科資料:
+{wiki_results}
+"""
+            return {
+                "query": query,
+                "data": result_text,
+                "status": "success"
+            }
+        except Exception as e:
+            print(f"[DataRetriever] 錯誤: {str(e)}")
+            return {
+                "query": query,
+                "data": "抱歉，檢索過程中發生錯誤。",
+                "status": "error"
+            }

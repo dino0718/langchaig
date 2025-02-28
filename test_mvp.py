@@ -5,10 +5,20 @@ if __name__ == "__main__":
     hive = HiveController()
     
     # 測試查詢，定義要查詢的關鍵字
-    query = "「請幫我找 中鋼  最新的財報，並分析該季度的營收趨勢」"
-    # 呼叫 process_request 方法開始處理請求
-    response = hive.process_request(query)
+    query = "請問南港最新的財報是什麼時候出來的"
     
-    # 列印最終生成的回應結果
-    print("\n🔥 最終結果 🔥")
-    print(response)
+    # 第一次查詢
+    print("\n🔥 第一次查詢 🔥")
+    response1 = hive.process_request(query)
+    print(f"\n查詢: {response1.get('query')}")
+    print(f"回應: {response1.get('response')}")
+    
+    # 第二次查詢（應該從記憶中獲取）
+    print("\n🔥 第二次查詢 🔥")
+    response2 = hive.process_request(query)
+    print(f"\n查詢: {response2.get('query')}")
+    print(f"回應: {response2.get('response')}")
+    if response2.get('from_memory'):
+        print("(從記憶中獲取)")
+
+

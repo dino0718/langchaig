@@ -1,16 +1,17 @@
 from typing import Dict
 from DataRetriever import DataRetriever
 from ResponseGenerator import ResponseGenerator
-from langchain_openai import ChatOpenAI  # 從新版模組導入 ChatOpenAI
-
+from langchain_openai import ChatOpenAI
+from langchain_community.chat_message_histories import ChatMessageHistory  # 修正導入路徑
 
 class HiveController:
     """負責管理並調度不同的 Agent"""
 
     def __init__(self):
-        self.llm = ChatOpenAI(model_name="gpt-4o")  # 讓 LLM 負責決策
+        self.llm = ChatOpenAI(model_name="gpt-4o")
         self.retriever = DataRetriever()
         self.generator = ResponseGenerator()
+        self.memory = ChatMessageHistory()  # 初始化聊天記憶
 
     def analyze_request(self, user_input: str) -> list:
         """用 GPT-4o 決定需要哪些 Agent"""
@@ -35,21 +36,39 @@ class HiveController:
         return eval(cleaned_response)
 
     def process_request(self, user_input: str) -> Dict:
-        """接收用戶請求，決定調用哪些 Agent"""
+        """接收用戶請求，查詢記憶，決定是否要重新檢索"""
         print(f"[HiveController] 收到請求: {user_input}")
 
-        agents_to_use = self.analyze_request(user_input)
-        print(f"[HiveController] AI 決定派遣的 Agent: {agents_to_use}")
+        # 檢查記憶
+        messages = self.memory.messages
+        for i in range(0, len(messages), 2):  # 每次檢查一組對話
+            if i + 1 < len(messages):  # 確保有配對的回應
+                user_msg = messages[i]
+                ai_msg = messages[i + 1]
+                if user_input.strip() == user_msg.content.strip():
+                    print("[HiveController] 發現相似的查詢，直接返回記憶結果。")
+                    return {
+                        "query": user_input,
+                        "response": ai_msg.content,
+                        "from_memory": True
+                    }
 
-        results = {}
+        # 如果是新問題，執行資料檢索
+        retrieved_data = self.retriever.invoke({"query": user_input})
+        
+        # 使用 ResponseGenerator 處理結果
+        if retrieved_data["status"] == "success":
+            response = self.generator.invoke({"data": retrieved_data})
+            if response and response.get("response"):
+                # 儲存到記憶
+                self.memory.add_user_message(user_input)
+                self.memory.add_ai_message(response["response"])
+                return {
+                    "query": user_input,
+                    "response": response["response"]
+                }
 
-        if "DataRetriever" in agents_to_use:
-            results["retrieved_data"] = self.retriever.invoke({"query": user_input})
-
-        if "ResponseGenerator" in agents_to_use:
-            results["response"] = self.generator.invoke({"data": results.get("retrieved_data", {})})
-
-        if "SelfEvaluator" in agents_to_use:
-            results["evaluation"] = self.evaluator.run({"response": results.get("response", {})})
-
-        return results
+        return {
+            "query": user_input,
+            "response": "抱歉，無法獲取相關資訊。"
+        }
