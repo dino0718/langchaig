@@ -1,38 +1,68 @@
-# LangChain 智能代理系統
+# LangChain 智能代理人系統
 
-這是一個基於 LangChain 開發的智能代理系統，能夠自動化處理資訊檢索和回應生成任務。
+一個基於 LangChain 開發的多代理人協作系統，具備自學習能力、長期記憶和市場分析功能。
 
 ## 系統架構
 
-### 核心組件
+### 1. 核心組件
 
-1. **HiveController**: 系統的核心控制器
-   - 負責任務調度和代理協調
-   - 整合記憶系統，避免重複查詢
-   - 使用 GPT-4 進行任務分析
+- **HiveController**: 中央控制器
+  - 任務分派與協調
+  - 代理人間溝通管理
+  - 學習機制觸發
+  - 品質控制
 
-2. **BaseAgent**: 代理基礎類別
-   - 定義標準介面
-   - 確保所有代理遵循相同的協議
+- **記憶系統**
+  - 短期記憶 (ChatMessageHistory)
+  - 長期記憶 (ChromaDB 向量資料庫)
+  - 智能時效性判斷
 
-3. **專業代理**
-   - **DataRetriever**: 資料檢索代理
-     - 使用 DuckDuckGo 搜尋引擎
-     - 整合 Wikipedia API
-   - **ResponseGenerator**: 回應生成代理
-     - 使用 GPT-4 處理和總結資訊
-     - 生成結構化且易讀的回應
+### 2. 專業代理人
 
-### 記憶系統
+1. **DataRetriever**
+   - 網路資訊檢索
+   - Wikipedia 查詢
+   - 自動時間戳記
 
-- 使用 ChatMessageHistory 儲存對話歷史
-- 配對儲存用戶查詢和系統回應
-- 提供快速檢索功能，避免重複處理
+2. **ResponseGenerator**
+   - 智能回應生成
+   - 多重嘗試機制
+   - 上下文感知
+
+3. **MarketSentimentAnalyzer**
+   - 市場情緒分析
+   - 技術指標計算
+   - 新聞情緒評估
+
+4. **SelfEvaluator**
+   - 回應品質評估
+   - 準確性檢查
+   - 相關性評分
+
+### 3. 學習系統
+
+- **BaseLearningAgent**
+  - 經驗累積
+  - 策略調整
+  - 案例學習
+
+- **學習觸發條件**
+  1. 低品質回應
+  2. 預測誤差
+  3. 用戶反饋
+  4. 市場波動
 
 ## 安裝需求
 
 ```bash
-pip install langchain langchain-openai langchain-community
+pip install langchain langchain-openai langchain-community langchain-chroma
+pip install chromadb pandas yfinance textblob jieba
+```
+
+## 環境變數
+
+```bash
+export OPENAI_API_KEY="your-api-key"
 ```
 
 ## 使用方式
@@ -40,59 +70,74 @@ pip install langchain langchain-openai langchain-community
 ```python
 from HiveController import HiveController
 
-# 初始化控制器
+# 初始化系統
 hive = HiveController()
 
-# 發送查詢請求
-query = "請問南港最新的財報是什麼時候出來的"
-response = hive.process_request(query)
+# 基本查詢
+response = hive.process_request("請分析台積電的市場趨勢")
 
-# 輸出結果
-print(response.get("response"))
+# 帶有反饋的查詢
+feedback = {
+    "user_rating": 4,
+    "feedback_type": "accuracy",
+    "comment": "預測準確"
+}
+response = hive.process_request("分析台積電走勢", feedback)
 ```
 
-## 功能特點
+## 特色功能
 
-1. **智能任務分配**
-   - 自動分析查詢需求
-   - 動態選擇適合的代理
+1. **智能記憶**
+   - 向量化儲存
+   - 相似度檢索
+   - 時效性驗證
 
-2. **資訊整合**
-   - 多來源資料檢索
-   - 智能摘要和分析
+2. **自主學習**
+   - 經驗累積
+   - 策略優化
+   - 持續改進
 
-3. **記憶系統**
-   - 避免重複查詢
-   - 確保回應一致性
+3. **市場分析**
+   - 技術指標
+   - 新聞情緒
+   - 趨勢預測
 
-4. **錯誤處理**
-   - 完整的異常處理機制
-   - 優雅的降級策略
+4. **代理人協作**
+   - 意見協調
+   - 衝突解決
+   - 資訊共享
 
-## 開發者指南
+## 開發指南
 
-### 添加新代理
+### 添加新代理人
 
-1. 繼承 BaseAgent 類別
-2. 實作 invoke 方法
-3. 在 HiveController 中註冊新代理
-
+1. 繼承基礎類別
 ```python
+from BaseAgent import BaseAgent
+
 class NewAgent(BaseAgent):
     def invoke(self, input_data: dict) -> dict:
-        # 實作代理邏輯
+        # 實作代理人邏輯
         pass
 ```
 
-### 自訂提示模板
+### 加入學習能力
 
-可以在 ResponseGenerator 中自訂提示模板來改進回應格式。
+```python
+from agents.base_learning_agent import BaseLearningAgent
+
+class LearningAgent(BaseLearningAgent):
+    def learn_from_feedback(self, feedback: Dict):
+        # 實作學習邏輯
+        pass
+```
 
 ## 注意事項
 
-- 需要設定適當的 API 金鑰
-- 注意 API 呼叫限制
-- 建議在生產環境中實作快取機制
+- 確保 API 金鑰設置正確
+- 注意記憶系統的儲存空間
+- 定期清理過期的記憶
+- 監控學習系統的效能
 
 ## 授權
 

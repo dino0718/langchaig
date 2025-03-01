@@ -7,6 +7,8 @@ from langchain_openai import ChatOpenAI
 from langchain_community.chat_message_histories import ChatMessageHistory  # 修正導入路徑
 from market_sentiment_analyzer import MarketSentimentAnalyzer
 import re  # 新增導入
+from agents.agent_coordinator import AgentCoordinator  # 新增導入
+from agents.learning_market_analyzer import LearningMarketAnalyzer
 
 class HiveController:
     """負責管理並調度不同的 Agent"""
@@ -22,6 +24,9 @@ class HiveController:
         self.memory = ChatMessageHistory()  # 初始化聊天記憶
         self.long_term_memory = LongTermMemory()  # 初始化長期記憶系統
         self.sentiment_analyzer = MarketSentimentAnalyzer()  # 初始化市場情緒分析器
+        self.coordinator = AgentCoordinator()  # 新增協調器
+        self.learning_market_analyzer = LearningMarketAnalyzer()
+        self.learning_threshold = 0.8  # 學習觸發閾值
 
     def analyze_request(self, user_input: str) -> list:
         """用 GPT-4o 決定需要哪些 Agent"""
@@ -46,7 +51,60 @@ class HiveController:
         # 將清理後的字串轉換為 Python List
         return eval(cleaned_response)
 
-    def process_request(self, user_input: str) -> Dict:
+    def trigger_learning(self, response: Dict, feedback: Dict = None) -> None:
+        """觸發學習機制的條件"""
+        # 1. 評分過低時觸發學習
+        if response.get("quality_score", 0) < self.QUALITY_THRESHOLD:
+            print("[HiveController] 檢測到低品質回應，觸發學習機制")
+            self.learning_market_analyzer.learn_from_feedback({
+                "type": "quality_issue",
+                "response": response,
+                "feedback": "評分過低"
+            })
+
+        # 2. 市場預測結果驗證
+        if "market_prediction" in response:
+            actual_price = self._verify_market_prediction(response["market_prediction"])
+            prediction_accuracy = self._calculate_prediction_accuracy(
+                response["market_prediction"], 
+                actual_price
+            )
+            
+            if prediction_accuracy < self.learning_threshold:
+                print("[HiveController] 預測準確度不足，觸發學習機制")
+                self.learning_market_analyzer.learn_from_feedback({
+                    "type": "prediction_error",
+                    "prediction": response["market_prediction"],
+                    "actual": actual_price
+                })
+
+        # 3. 用戶提供明確反饋
+        if feedback and feedback.get("user_rating"):
+            print("[HiveController] 收到用戶反饋，觸發學習機制")
+            self.learning_market_analyzer.learn_from_feedback(feedback)
+
+    def _verify_market_prediction(self, prediction: Dict) -> Dict:
+        """驗證市場預測結果"""
+        try:
+            symbol = prediction.get("symbol")
+            predicted_price = prediction.get("price")
+            predicted_direction = prediction.get("direction")
+            
+            # 獲取實際市場數據
+            stock = yf.Ticker(symbol)
+            current_price = stock.history(period="1d")['Close'][-1]
+            
+            return {
+                "symbol": symbol,
+                "actual_price": current_price,
+                "prediction_diff": current_price - predicted_price,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        except Exception as e:
+            print(f"[HiveController] 預測驗證錯誤: {str(e)}")
+            return {}
+
+    def process_request(self, user_input: str, feedback: Dict = None) -> Dict:
         print(f"[HiveController] 收到請求: {user_input}")
 
         # 檢查是否是情緒分析相關查詢
@@ -168,4 +226,30 @@ class HiveController:
         if final_response["response"] is None:
             final_response["response"] = "抱歉，無法獲取相關資訊。"
 
+        # 觸發學習機制
+        self.trigger_learning(final_response, feedback)
+        
         return final_response
+
+    def resolve_conflicts(self, agent_responses: Dict) -> Dict:
+        """解決代理人之間的意見分歧"""
+        # 例如：當 DataRetriever 和 MarketSentimentAnalyzer 對市場趨勢有不同判斷
+        if ("DataRetriever" in agent_responses and 
+            "MarketSentimentAnalyzer" in agent_responses):
+            
+            resolution = self.coordinator.negotiate(
+                "DataRetriever",
+                agent_responses["DataRetriever"],
+                "MarketSentimentAnalyzer",
+                agent_responses["MarketSentimentAnalyzer"]
+            )
+            
+            # 將協調結果廣播給相關代理人
+            self.coordinator.broadcast(
+                resolution,
+                ["DataRetriever", "MarketSentimentAnalyzer"]
+            )
+            
+            return resolution
+            
+        return agent_responses
