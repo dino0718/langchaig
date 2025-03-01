@@ -4,6 +4,7 @@ from langchain_chroma import Chroma  # 更新導入路徑
 from langchain_core.documents import Document
 from datetime import datetime, timedelta
 import re
+import jieba  # 新增：用於中文分詞
 
 class LongTermMemory:
     """使用 ChromaDB 來存儲 AI 過去的回應，提升記憶能力"""
@@ -16,6 +17,7 @@ class LongTermMemory:
             embedding_function=self.embedding,
             collection_name="memory"
         )
+        self.company_keywords = {}  # 用於儲存公司關鍵字
 
     def store_memory(self, query: str, response: str, timestamp: str = None):
         """將用戶查詢與 AI 回應存入向量資料庫"""
@@ -30,6 +32,40 @@ class LongTermMemory:
         doc = Document(page_content=memory_content)
         self.vector_store.add_documents([doc])
         print(f"[LongTermMemory] 已儲存查詢: {query}")
+
+    def extract_company_name(self, query: str) -> str:
+        """從查詢中提取公司名稱"""
+        # 常見股票代號格式
+        stock_pattern = r'([0-9]{4,6})|([a-zA-Z]+[0-9]+)'
+        stock_match = re.search(stock_pattern, query)
+        if stock_match:
+            return stock_match.group()
+            
+        # 常見公司名稱
+        company_pattern = r'([\u4e00-\u9fff]{2,})[股票|股價|公司]?'
+        company_match = re.search(company_pattern, query)
+        if company_match:
+            return company_match.group(1)
+            
+        return ""
+
+    def is_query_similar(self, memory_content: str, query: str) -> bool:
+        """檢查查詢是否相似"""
+        # 提取公司名稱
+        memory_company = self.extract_company_name(memory_content)
+        query_company = self.extract_company_name(query)
+        
+        # 如果都有公司名稱，必須相同才算相似
+        if memory_company and query_company:
+            return memory_company == query_company
+            
+        # 如果沒有公司名稱，進行一般相似度比較
+        memory_words = set(jieba.cut(memory_content))
+        query_words = set(jieba.cut(query))
+        
+        # 計算詞彙重疊度
+        overlap = len(memory_words & query_words)
+        return overlap >= 2  # 至少需要2個詞彙重疊
 
     def is_date_relevant(self, memory_content: str, query: str) -> bool:
         """檢查記憶中的日期是否與查詢相關"""
@@ -76,24 +112,25 @@ class LongTermMemory:
             return False
 
     def retrieve_similar_queries(self, query: str, k: int = 3):
-        """檢索相關記錄並進行時間篩選"""
+        """檢索相關記錄並進行時間和相似度篩選"""
         try:
             # 增加搜尋範圍以提高找到相關日期的機會
             results = self.vector_store.similarity_search(query, k=k+2)
             if not results:
                 return []
                 
-            # 過濾出時間相關的記憶
+            # 過濾出相關且時效性符合的記憶
             relevant_results = [
                 result for result in results 
-                if self.is_date_relevant(result.page_content, query)
+                if self.is_query_similar(result.page_content, query) and 
+                   self.is_date_relevant(result.page_content, query)
             ]
             
             if relevant_results:
-                print(f"[LongTermMemory] 找到 {len(relevant_results)} 筆符合日期的記憶")
+                print(f"[LongTermMemory] 找到 {len(relevant_results)} 筆相關且符合時效的記憶")
                 return relevant_results[:k]  # 只返回前k筆結果
             else:
-                print("[LongTermMemory] 沒有找到符合日期的記憶，需要重新檢索")
+                print("[LongTermMemory] 沒有找到相關記憶，需要重新檢索")
                 return []
                 
         except Exception as e:

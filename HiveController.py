@@ -5,6 +5,8 @@ from SelfEvaluator import SelfEvaluator
 from long_term_memory import LongTermMemory  # 新增導入
 from langchain_openai import ChatOpenAI
 from langchain_community.chat_message_histories import ChatMessageHistory  # 修正導入路徑
+from market_sentiment_analyzer import MarketSentimentAnalyzer
+import re  # 新增導入
 
 class HiveController:
     """負責管理並調度不同的 Agent"""
@@ -19,6 +21,7 @@ class HiveController:
         self.evaluator = SelfEvaluator()  # 新增 evaluator
         self.memory = ChatMessageHistory()  # 初始化聊天記憶
         self.long_term_memory = LongTermMemory()  # 初始化長期記憶系統
+        self.sentiment_analyzer = MarketSentimentAnalyzer()  # 初始化市場情緒分析器
 
     def analyze_request(self, user_input: str) -> list:
         """用 GPT-4o 決定需要哪些 Agent"""
@@ -30,6 +33,7 @@ class HiveController:
         - 如果需要從外部數據源檢索資訊，請選擇 "DataRetriever"
         - 如果需要進行數據分析或趨勢預測，請選擇 "ResponseGenerator"
         - 如果需要評估資料可信度，請選擇 "SelfEvaluator"
+        - 如果需要分析市場情緒，請選擇 "MarketSentimentAnalyzer"
 
         請**只回傳一個 Python List**，例如：["DataRetriever", "ResponseGenerator"]
         """
@@ -44,6 +48,40 @@ class HiveController:
 
     def process_request(self, user_input: str) -> Dict:
         print(f"[HiveController] 收到請求: {user_input}")
+
+        # 檢查是否是情緒分析相關查詢
+        if "情緒" in user_input or "新聞" in user_input:
+            # 提取股票代碼（如果有的話）
+            stock_pattern = r'([0-9]{4,6}\.TW|[0-9]{4,6})'
+            stock_match = re.search(stock_pattern, user_input)
+            stock_symbol = stock_match.group() if stock_match else "2330.TW"
+            
+            # 執行市場情緒分析
+            sentiment_result = self.sentiment_analyzer.invoke({
+                "query": user_input,
+                "symbol": f"{stock_symbol}.TW" if not stock_symbol.endswith('.TW') else stock_symbol
+            })
+            
+            if sentiment_result["status"] == "success":
+                response = f"""
+查詢時間: {sentiment_result['timestamp']}
+
+市場情緒分析結果：
+{sentiment_result['analysis']}
+
+相關新聞摘要：
+{chr(10).join(sentiment_result['news_sentiment'][:5])}  # 只顯示前5條新聞
+
+技術指標數據：
+- 最新價格：{sentiment_result['technical_data'].get('latest_price', 'N/A')}
+- RSI：{sentiment_result['technical_data'].get('rsi', 'N/A')}
+- 趨勢：{sentiment_result['technical_data'].get('trend', 'N/A')}
+"""
+                return {
+                    "query": user_input,
+                    "response": response,
+                    "timestamp": sentiment_result['timestamp']
+                }
 
         # 先檢查長期記憶
         similar_memories = self.long_term_memory.retrieve_similar_queries(user_input)
