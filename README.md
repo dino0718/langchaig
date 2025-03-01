@@ -1,117 +1,137 @@
 # LangChain 智能代理人系統
 
-一個基於 LangChain 開發的多代理人協作系統，具備自學習能力、長期記憶和市場分析功能。
+## 專案概述
+基於 LangChain 開發的多代理人協作系統，具備自主學習能力、長期記憶和市場分析功能。本系統包含多個專業代理人，能夠處理股票分析、新聞解讀等任務。
 
 ## 系統架構
 
-### 1. 核心組件
+### 核心組件
 
-- **HiveController**: 中央控制器
-  - 任務分派與協調
-  - 代理人間溝通管理
-  - 學習機制觸發
-  - 品質控制
+1. **HiveController**
+   - 中央控制與調度中心
+   - 代理人協作管理
+   - 學習機制觸發
+   - 回應品質控制
 
-- **記憶系統**
-  - 短期記憶 (ChatMessageHistory)
-  - 長期記憶 (ChromaDB 向量資料庫)
-  - 智能時效性判斷
+2. **記憶系統**
+   - 短期記憶 (ChatMessageHistory)
+   - 長期記憶 (ChromaDB)
+   - 時效性驗證機制
 
-### 2. 專業代理人
+### 專業代理人
 
 1. **DataRetriever**
+   - 支援股票代碼與公司名稱識別
+   - 即時股價查詢
+   - 財務報表分析
    - 網路資訊檢索
-   - Wikipedia 查詢
-   - 自動時間戳記
+   - 維基百科資料整合
 
-2. **ResponseGenerator**
-   - 智能回應生成
-   - 多重嘗試機制
-   - 上下文感知
-
-3. **MarketSentimentAnalyzer**
+2. **MarketSentimentAnalyzer**
    - 市場情緒分析
-   - 技術指標計算
    - 新聞情緒評估
+   - 技術指標計算
+   - 趨勢預測
 
-4. **SelfEvaluator**
+3. **SelfEvaluator**
    - 回應品質評估
-   - 準確性檢查
-   - 相關性評分
+   - 資訊時效性檢查
+   - 準確度驗證
 
-### 3. 學習系統
+4. **LearningMarketAnalyzer**
+   - 經驗學習與累積
+   - 策略自動調整
+   - 預測準確度追蹤
 
-- **BaseLearningAgent**
-  - 經驗累積
-  - 策略調整
-  - 案例學習
+### API 服務
 
-- **學習觸發條件**
-  1. 低品質回應
-  2. 預測誤差
-  3. 用戶反饋
-  4. 市場波動
+- `/analyze`: 市場分析端點
+- `/feedback`: 使用者反饋端點
+- `/user/{user_id}/preferences`: 使用者偏好設定
 
 ## 安裝需求
 
 ```bash
-pip install langchain langchain-openai langchain-community langchain-chroma
-pip install chromadb pandas yfinance textblob jieba
+pip install -r requirements.txt
 ```
 
-## 環境變數
+需要安裝的主要套件：
+- langchain-openai
+- langchain-community
+- langchain-chroma
+- chromadb
+- pandas
+- yfinance
+- textblob
+- jieba
+- fastapi
+- uvicorn
 
+## 環境設定
+
+1. 設定 OpenAI API 金鑰：
 ```bash
 export OPENAI_API_KEY="your-api-key"
 ```
 
+2. 創建必要目錄：
+```bash
+mkdir -p ./chroma_db
+mkdir -p ./agent_memory
+```
+
 ## 使用方式
 
+1. 啟動 API 服務：
+```bash
+uvicorn api_service:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. 基本查詢：
 ```python
 from HiveController import HiveController
 
-# 初始化系統
 hive = HiveController()
+response = hive.process_request("請分析台積電的最新股價")
+```
 
-# 基本查詢
-response = hive.process_request("請分析台積電的市場趨勢")
-
-# 帶有反饋的查詢
+3. 使用者反饋：
+```python
 feedback = {
     "user_rating": 4,
     "feedback_type": "accuracy",
-    "comment": "預測準確"
+    "comment": "分析準確"
 }
-response = hive.process_request("分析台積電走勢", feedback)
+response = hive.process_request("分析台積電走勢", feedback=feedback)
 ```
 
-## 特色功能
+## 功能特點
 
-1. **智能記憶**
-   - 向量化儲存
-   - 相似度檢索
+1. **智能查詢處理**
+   - 自動識別股票代碼和公司名稱
+   - 即時市場數據獲取
+   - 財報資訊分析
+
+2. **自主學習系統**
+   - 基於用戶反饋的學習
+   - 預測準確度追蹤
+   - 策略自動調整
+
+3. **記憶管理**
+   - 智能快取機制
    - 時效性驗證
-
-2. **自主學習**
-   - 經驗累積
-   - 策略優化
-   - 持續改進
-
-3. **市場分析**
-   - 技術指標
-   - 新聞情緒
-   - 趨勢預測
+   - 相似度檢索
 
 4. **代理人協作**
-   - 意見協調
-   - 衝突解決
+   - 多代理人協調
+   - 衝突解決機制
    - 資訊共享
 
 ## 開發指南
 
 ### 添加新代理人
 
-1. 繼承基礎類別
+1. 繼承基礎類別：
 ```python
 from BaseAgent import BaseAgent
 
@@ -121,8 +141,7 @@ class NewAgent(BaseAgent):
         pass
 ```
 
-### 加入學習能力
-
+2. 加入學習能力：
 ```python
 from agents.base_learning_agent import BaseLearningAgent
 
@@ -134,11 +153,15 @@ class LearningAgent(BaseLearningAgent):
 
 ## 注意事項
 
-- 確保 API 金鑰設置正確
-- 注意記憶系統的儲存空間
-- 定期清理過期的記憶
-- 監控學習系統的效能
+1. **資料安全**
+   - 定期備份記憶數據
+   - 監控 API 使用量
+   - 注意資料時效性
+
+2. **系統維護**
+   - 定期清理過期記憶
+   - 監控學習效果
+   - 更新公司資訊數據庫
 
 ## 授權
-
 MIT License

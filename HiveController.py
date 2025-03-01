@@ -9,7 +9,8 @@ from market_sentiment_analyzer import MarketSentimentAnalyzer
 import re  # 新增導入
 from agents.agent_coordinator import AgentCoordinator  # 新增導入
 from agents.learning_market_analyzer import LearningMarketAnalyzer
-
+import datetime  # 新增導入
+import yfinance as yf  # 新增導入
 class HiveController:
     """負責管理並調度不同的 Agent"""
     
@@ -104,43 +105,29 @@ class HiveController:
             print(f"[HiveController] 預測驗證錯誤: {str(e)}")
             return {}
 
-    def process_request(self, user_input: str, feedback: Dict = None) -> Dict:
+    def process_request(self, user_input: str, feedback: Dict = None, user_preferences: Dict = None) -> Dict:
         print(f"[HiveController] 收到請求: {user_input}")
-
-        # 檢查是否是情緒分析相關查詢
-        if "情緒" in user_input or "新聞" in user_input:
+        
+        # 分析查詢類型
+        agents_to_use = self.analyze_request(user_input)
+        
+        # 如果查詢包含股票代碼，優先使用股票分析邏輯
+        stock_pattern = r'([0-9]{4,6}\.TW|[0-9]{4,6})'
+        stock_match = re.search(stock_pattern, user_input)
+        
+        if stock_match or "股價" in user_input:
             # 提取股票代碼（如果有的話）
-            stock_pattern = r'([0-9]{4,6}\.TW|[0-9]{4,6})'
-            stock_match = re.search(stock_pattern, user_input)
             stock_symbol = stock_match.group() if stock_match else "2330.TW"
-            
-            # 執行市場情緒分析
-            sentiment_result = self.sentiment_analyzer.invoke({
-                "query": user_input,
-                "symbol": f"{stock_symbol}.TW" if not stock_symbol.endswith('.TW') else stock_symbol
-            })
-            
-            if sentiment_result["status"] == "success":
-                response = f"""
-查詢時間: {sentiment_result['timestamp']}
-
-市場情緒分析結果：
-{sentiment_result['analysis']}
-
-相關新聞摘要：
-{chr(10).join(sentiment_result['news_sentiment'][:5])}  # 只顯示前5條新聞
-
-技術指標數據：
-- 最新價格：{sentiment_result['technical_data'].get('latest_price', 'N/A')}
-- RSI：{sentiment_result['technical_data'].get('rsi', 'N/A')}
-- 趨勢：{sentiment_result['technical_data'].get('trend', 'N/A')}
-"""
+            # 執行股票數據檢索
+            retrieved_data = self.retriever.invoke({"query": user_input})
+            if retrieved_data["status"] == "success" and retrieved_data.get("stock_info"):
                 return {
                     "query": user_input,
-                    "response": response,
-                    "timestamp": sentiment_result['timestamp']
+                    "response": self._format_stock_response(retrieved_data),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
-
+        
+        # 如果是一般查詢，使用標準處理流程
         # 先檢查長期記憶
         similar_memories = self.long_term_memory.retrieve_similar_queries(user_input)
         if similar_memories:
@@ -230,6 +217,25 @@ class HiveController:
         self.trigger_learning(final_response, feedback)
         
         return final_response
+
+    def _format_stock_response(self, data: Dict) -> str:
+        """格式化股票資訊回應"""
+        stock_info = data.get("stock_info", {})
+        if not stock_info:
+            return "抱歉，無法獲取股票資訊。"
+            
+        return f"""
+查詢時間: {data['timestamp']}
+
+股票資訊：
+代碼: {stock_info['symbol']}
+現價: NT${stock_info['current_price']:.2f}
+漲跌: {stock_info['change']:+.2f}
+成交量: {stock_info['volume']:,}
+
+其他市場資訊：
+{data['data']}
+"""
 
     def resolve_conflicts(self, agent_responses: Dict) -> Dict:
         """解決代理人之間的意見分歧"""

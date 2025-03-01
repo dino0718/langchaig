@@ -30,6 +30,14 @@ class MarketSentimentAnalyzer(BaseAgent):
 """
         )
 
+    def set_indicators(self, indicators: list):
+        """設置技術指標"""
+        self.technical_indicators = indicators
+
+    def set_timeframes(self, timeframes: list):
+        """設置時間週期"""
+        self.timeframes = timeframes
+
     def fetch_stock_data(self, symbol: str):
         """獲取股票數據"""
         try:
@@ -43,7 +51,7 @@ class MarketSentimentAnalyzer(BaseAgent):
 
     def analyze_technical_indicators(self, hist: pd.DataFrame) -> dict:
         """計算技術指標"""
-        if hist.empty:
+        if (hist.empty):
             return {}
             
         try:

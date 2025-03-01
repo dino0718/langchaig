@@ -14,8 +14,13 @@ class ResponseGenerator(BaseAgent):
 
 查詢類型判斷：
 1. 如果是詢問身份（例如：你是誰），請進行自我介紹
-2. 如果是查詢股票或財報，請提供相關數據分析
+2. 如果是查詢股票或財報，請優先使用即時股價資訊，並標註資料時間
 3. 如果是一般資訊查詢，請提供相關資訊摘要
+
+注意事項：
+1. 股價資訊必須使用即時數據
+2. 所有資訊都要標註時間
+3. 如果發現資訊可能過時，要明確說明
 
 原始查詢：{query}
 查詢時間：{timestamp}
@@ -23,15 +28,7 @@ class ResponseGenerator(BaseAgent):
 資訊來源：
 {data}
 
-如果是身份相關查詢，請使用以下格式回應：
-我是一個基於 AI 技術開發的智能助理，專長包括：
-- 股票市場分析和財報解讀
-- 即時新聞和資訊檢索
-- 市場情緒分析
-- 數據分析和趨勢預測
-
-其他查詢則使用原有結構化格式回應。
-"""
+請生成結構化的回應："""
         )
 
     def invoke(self, input_data: dict) -> dict:  # 將 run 改名為 invoke
@@ -42,13 +39,25 @@ class ResponseGenerator(BaseAgent):
         query = retrieved_data.get("query", "")
         timestamp = retrieved_data.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         
-        # 根據重試次數調整提示
+        # 檢查是否有驗證過的股票資訊
+        stock_info = retrieved_data.get("stock_info", {})
+        if stock_info and stock_info.get("verified"):
+            stock_data = (
+                f"即時股價資訊 (更新時間: {stock_info['timestamp']}):\n"
+                f"股票代碼: {stock_info['symbol']}\n"
+                f"現價: NT${stock_info['current_price']:.2f}\n"
+                f"漲跌: {stock_info['change']:.2f}\n"
+                f"成交量: {stock_info['volume']:,.0f}"
+            )
+        else:
+            stock_data = "無法獲取可靠的即時股價資訊。請稍後再試或直接查詢交易所網站。"
+
         retry_hint = "更仔細地" if retry_count > 0 else ""
         
         # 將檢索結果填入提示模板中
         prompt = self.template.format(
             query=query,
-            data=retrieved_data.get("data", ""),
+            data=stock_data,
             retry_hint=retry_hint,
             timestamp=timestamp
         )
