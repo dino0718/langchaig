@@ -1,6 +1,7 @@
 from langchain_community.tools import DuckDuckGoSearchRun  # 使用 DuckDuckGo 進行網路搜尋
 from langchain_community.utilities import WikipediaAPIWrapper  # 使用 Wikipedia API 查詢資料
 from BaseAgent import BaseAgent
+from datetime import datetime
 
 class DataRetriever(BaseAgent):
     """從網路與 Wikipedia 檢索相關資訊"""
@@ -14,12 +15,16 @@ class DataRetriever(BaseAgent):
         """根據傳入的查詢關鍵字檢索外部資料"""
         query = input_data["query"]
         print(f"[DataRetriever] 檢索中: {query}")
+        
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
             search_results = self.search_tool.run(query)
             wiki_results = self.wiki_tool.run(query)
             
             result_text = f"""
+檢索時間: {current_time}
+
 搜尋結果:
 {search_results}
 
@@ -29,6 +34,7 @@ class DataRetriever(BaseAgent):
             return {
                 "query": query,
                 "data": result_text,
+                "timestamp": current_time,
                 "status": "success"
             }
         except Exception as e:
